@@ -9,15 +9,6 @@ local garbageHQPedHash = GetHashKey(Config.GarbageCenterPed)
 local garbageTruckHash = GetHashKey(Config.GarbageTruck)
 local dumpsterHash = GetHashKey(Config.DumpsterProp)
 
-local garbageHQ = CircleZone:Create(Config.GarbageCenter, 50.0, {
-    name = "circle_zone",
-    debugPoly = Config.Debug,
-})
-
-garbageHQ:onPlayerInOut(function(isPointInside, point)
-    insidegarbageHQ = isPointInside
-end)
-
 -- THREADS --
 
 CreateThread(function()
@@ -25,24 +16,6 @@ CreateThread(function()
     local wait = 1000 
 
     while true do
-        if insidegarbageHQ then
-            if ped == nil then
-                ped = CreatePed(1, garbageHQPedHash, Config.GarbageCenter.x, Config.GarbageCenter.y, Config.GarbageCenter.z-1, Config.GarbageCenterPedHeading, false, true)
-                FreezeEntityPosition(ped, true)
-                SetEntityInvincible(ped, true)
-                TaskSetBlockingOfNonTemporaryEvents(ped, true)
-                SetPedFleeAttributes(ped, 0, false)
-                SetPedCombatAttributes(ped, 46, true)
-                SetPedCombatAttributes(ped, 5, true)
-            end
-        else
-            if ped ~= nil then
-                DeletePed(ped)
-                ped = nil
-            end
-        end
-        
-        -- This part was in second thread but i put it here to have only one thread
         local playerCoords = GetEntityCoords(PlayerPedId()) 
         local distance = #(playerCoords - Config.GarbageCenter)
         
@@ -63,9 +36,22 @@ CreateThread(function()
                 activeJob = false
             end
             wait = 1
-        elseif distance < 20.0 then
+        elseif distance < 50.0 then
+            if ped == nil then
+                ped = CreatePed(1, garbageHQPedHash, Config.GarbageCenter.x, Config.GarbageCenter.y, Config.GarbageCenter.z-1, Config.GarbageCenterPedHeading, false, true)
+                FreezeEntityPosition(ped, true)
+                SetEntityInvincible(ped, true)
+                TaskSetBlockingOfNonTemporaryEvents(ped, true)
+                SetPedFleeAttributes(ped, 0, false)
+                SetPedCombatAttributes(ped, 46, true)
+                SetPedCombatAttributes(ped, 5, true)
+            end
             wait = 250
         else
+            if ped ~= nil then
+                DeletePed(ped)
+                ped = nil
+            end
             wait = 2000
         end
 
