@@ -1,18 +1,13 @@
-local insidegarbageHQ = false
-local pedSpawned = false
 local activeJob = false
 local vehicle
-local lastDumpster = nil
 local jobsDone = 0
 
 local garbageHQPedHash = GetHashKey(Config.GarbageCenterPed)
-local garbageTruckHash = GetHashKey(Config.GarbageTruck)
-local dumpsterHash = GetHashKey(Config.DumpsterProp)
 
 -- THREADS --
 
 CreateThread(function()
-    local ped = nil 
+    local ped
     local wait = 1000 
 
     while true do
@@ -28,7 +23,7 @@ CreateThread(function()
                 Notify(Instructions.CancelingJob, NotifyType.error)
                 if jobsDone > 0 then
                     Notify(Instructions.PayCheck, NotifyType.success)
-                    TriggerServerEvent('garbagejob:paycheck', (math.random(Config.DumpsterReward[1], Config.DumpsterReward[2]) * jobsDone))
+                    TriggerServerEvent('garbageJob:paycheck', (math.random(Config.DumpsterReward[1], Config.DumpsterReward[2]) * jobsDone))
                     jobsDone = 0
                 end
                 DeleteVehicle(vehicle)
@@ -64,7 +59,7 @@ end)
 -- JOB FUNCTION --
 
 StartJob = function()
-    local dumpster = nil
+    local dumpster
     local dumpsterSpawned = false
     local pickedDumpster
     local lastDumpster = 0
@@ -73,32 +68,57 @@ StartJob = function()
         Notify(Instructions.StartedJob, NotifyType.info)
         SpawnTruck()
     else
-        Notify(Instructions.BlockedSpawnpoint, NotifyType.error)
+        Notify(Instructions.BlockedSpawnPoint, NotifyType.error)
         activeJob = false
         return
     end
 
+    local time = 1000
     while activeJob do
         if not dumpsterSpawned then
             pickedDumpster = math.random(1, #DumpsterLocations)
             lastDumpster = pickedDumpster
 
-            while lastDumpster == pickedDumpster do -- Not having the same dumspter again
+            while lastDumpster == pickedDumpster do -- Not having the same dumpster again
                 pickedDumpster = math.random(1, #DumpsterLocations)
             end
 
             RequestModel(Config.DumpsterProp)
             while not HasModelLoaded(Config.DumpsterProp) do
                 Wait(10)
-                print('A')
             end
 
             dumpster = CreateObject(Config.DumpsterProp, DumpsterLocations[pickedDumpster][1].x, DumpsterLocations[pickedDumpster][1].y, DumpsterLocations[pickedDumpster][1].z-1, true, true, true)
             SetEntityHeading(prop, DumpsterLocations[pickedDumpster][2])
             dumpsterSpawned = true
-            print(DumpsterLocations[pickedDumpster][1])
+            if Config.Debug then
+                print('Spawned dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
+            end
+            time = 1000
+        else
+            while dumpsterSpawned do
+                playerCoords = GetEntityCoords(PlayerPedId())
+                local radius = #(playerCoords - DumpsterLocations[pickedDumpster][1])
+                if radius < 50.0 and radius > 2.0 then
+                    Wait(1)
+                    DrawMarkers(DumpsterLocations[pickedDumpster][1], 0, 1.0)
+                elseif radius < 2.0 then
+                    Wait(1)
+                    ShowFloatingHelpNotification('Press ~INPUT_PICKUP~ to pick up the trash', vec3(DumpsterLocations[pickedDumpster][1].x, DumpsterLocations[pickedDumpster][1].y, DumpsterLocations[pickedDumpster][1].z+0.85))
+                    if IsControlJustReleased(0, 38) then
+                        DeleteObject(dumpster)
+                        dumpsterSpawned = false
+                        jobsDone = jobsDone + 1
+                        if Config.Debug then
+                            print('Picked up dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
+                        end
+                    end
+                else
+                    Wait(1000)
+                end
+            end
         end
-        Wait(1000)
+        Wait(time)
     end
 end
 
@@ -143,4 +163,8 @@ IsPlaceClear = function(coords, maxDistance)
     end
 
     return #nearbyEntities == 0
+end
+
+DrawMarkers = function(coords, type, scale)
+    DrawMarker(type, coords.x, coords.y, coords.z+3, 0.0, 0.0, 0.0, 0, 0.0, 0.0, scale, scale, scale, 235, 241, 12, 155, false, true, 2, false, false, false, false)
 end

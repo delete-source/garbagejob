@@ -1,5 +1,5 @@
 Config = {
-    Debug = false,
+    Debug = true, -- Debug mode, will print some stuff to console
 
     GarbageCenter = vec3(-322.2233, -1545.9214, 31.0199),
     GarbageCenterPedHeading = 289.8542,
@@ -11,7 +11,7 @@ Config = {
     GarbageCarSpawnHeading = 269.7216,
 
     DumpsterProp = 'prop_dumpster_4a',
-    DumpsterReward = {100, 200} -- Random ammount {from, to} this will be reward from one Dumpster
+    DumpsterReward = {100, 200} -- Random amount {from, to} this will be reward from one Dumpster
 }
 
 DumpsterLocations = {-- Format: {coords, heading}
@@ -22,7 +22,7 @@ DumpsterLocations = {-- Format: {coords, heading}
 }
 
 Instructions = { -- Instructions given by notifications
-    BlockedSpawnpoint = 'The spawnpoint is blocked! Canceling the job.',
+    BlockedSpawnPoint = 'The spawnpoint is blocked! Canceling the job.',
     StartedJob = 'Enjoy your ~y~route~s~.',
     CancelingJob = 'Canceling your job ~r~now~s~.',
     PayCheck = 'Here is you ~g~paycheck~s~!'
