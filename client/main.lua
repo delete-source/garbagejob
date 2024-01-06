@@ -1,6 +1,7 @@
 local activeJob = false
 local vehicle
 local jobsDone = 0
+local dumpsterSpawned
 
 local garbageHQPedHash = GetHashKey(Config.GarbageCenterPed)
 
@@ -8,7 +9,19 @@ local garbageHQPedHash = GetHashKey(Config.GarbageCenterPed)
 
 CreateThread(function()
     local ped
-    local wait = 1000 
+    local wait = 1000
+
+    if Config.UseBlip then
+        local blip = AddBlipForCoord(Config.GarbageCenter)
+        SetBlipSprite(blip, Config.BlipSettings.Sprite)
+        SetBlipDisplay(blip, Config.BlipSettings.Display)
+        SetBlipScale(blip, Config.BlipSettings.Scale)
+        SetBlipColour(blip, Config.BlipSettings.Color)
+        SetBlipAsShortRange(blip, true)
+        BeginTextCommandSetBlipName('STRING')
+        AddTextComponentString(Config.BlipName)
+        EndTextCommandSetBlipName(blip)
+    end
 
     while true do
         local playerCoords = GetEntityCoords(PlayerPedId()) 
@@ -18,7 +31,10 @@ CreateThread(function()
             ShowFloatingHelpNotification(Config.GarbageCenterPedText, vec3(Config.GarbageCenter.x, Config.GarbageCenter.y, Config.GarbageCenter.z+0.85))
             if IsControlJustReleased(0, 38) and not activeJob then
                 activeJob = true
-                StartJob()
+                if Config.Debug then
+                    print('Starting job')
+                end
+                TriggerEvent('garbagejob:startjob', source)
             elseif IsControlJustReleased(0, 38) and vehicle then
                 Notify(Instructions.CancelingJob, NotifyType.error)
                 if jobsDone > 0 then
@@ -26,7 +42,10 @@ CreateThread(function()
                     TriggerServerEvent('garbageJob:paycheck', (math.random(Config.DumpsterReward[1], Config.DumpsterReward[2]) * jobsDone))
                     jobsDone = 0
                 end
+                DeleteObject(dumpster)
                 DeleteVehicle(vehicle)
+                TriggerEvent('garbagejob:stoproute')
+                dumpsterSpawned = false
                 vehicle = nil
                 activeJob = false
             end
@@ -34,6 +53,9 @@ CreateThread(function()
         elseif distance < 50.0 then
             if ped == nil then
                 ped = CreatePed(1, garbageHQPedHash, Config.GarbageCenter.x, Config.GarbageCenter.y, Config.GarbageCenter.z-1, Config.GarbageCenterPedHeading, false, true)
+                if Config.Debug then
+                    print('Ped created')
+                end
                 FreezeEntityPosition(ped, true)
                 SetEntityInvincible(ped, true)
                 TaskSetBlockingOfNonTemporaryEvents(ped, true)
@@ -45,6 +67,9 @@ CreateThread(function()
         else
             if ped ~= nil then
                 DeletePed(ped)
+                if Config.Debug then
+                    print('Ped deleted')
+                end
                 ped = nil
             end
             wait = 2000
@@ -58,9 +83,19 @@ end)
 
 -- JOB FUNCTION --
 
+RegisterNetEvent('garbagejob:startjob')
+AddEventHandler('garbagejob:startjob', function()
+    local isClose = (#(GetEntityCoords(PlayerPedId()) - Config.GarbageCenter) < 2.0) and true or false
+    if not isClose then
+        activeJob = false
+        return
+    end
+    StartJob()
+end)
+
 StartJob = function()
     local dumpster
-    local dumpsterSpawned = false
+    dumpsterSpawned = false
     local pickedDumpster
     local lastDumpster = 0
 
@@ -77,11 +112,12 @@ StartJob = function()
     while activeJob do
         if not dumpsterSpawned then
             pickedDumpster = math.random(1, #DumpsterLocations)
-            lastDumpster = pickedDumpster
 
             while lastDumpster == pickedDumpster do -- Not having the same dumpster again
                 pickedDumpster = math.random(1, #DumpsterLocations)
             end
+
+            lastDumpster = pickedDumpster
 
             RequestModel(Config.DumpsterProp)
             while not HasModelLoaded(Config.DumpsterProp) do
@@ -94,11 +130,17 @@ StartJob = function()
             if Config.Debug then
                 print('Spawned dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
             end
+            --StartRouteToDumpster(DumpsterLocations[pickedDumpster][1])
+            if Config.Debug then
+                print('Started route to dumpster')
+            end
+            TriggerEvent('garbagejob:startroute', DumpsterLocations[pickedDumpster][1])
             time = 1000
         else
             while dumpsterSpawned do
                 playerCoords = GetEntityCoords(PlayerPedId())
                 local radius = #(playerCoords - DumpsterLocations[pickedDumpster][1])
+
                 if radius < 50.0 and radius > 2.0 then
                     Wait(1)
                     DrawMarkers(DumpsterLocations[pickedDumpster][1], 0, 1.0)
@@ -109,6 +151,10 @@ StartJob = function()
                         DeleteObject(dumpster)
                         dumpsterSpawned = false
                         jobsDone = jobsDone + 1
+                        Notify(Instructions.NextJobOrCancel, NotifyType.info)
+                        --RemoveBlip(DumpsterBlip)
+                        --DumpsterBlip = nil
+                        TriggerEvent('garbagejob:stoproute')
                         if Config.Debug then
                             print('Picked up dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
                         end
@@ -168,3 +214,25 @@ end
 DrawMarkers = function(coords, type, scale)
     DrawMarker(type, coords.x, coords.y, coords.z+3, 0.0, 0.0, 0.0, 0, 0.0, 0.0, scale, scale, scale, 235, 241, 12, 155, false, true, 2, false, false, false, false)
 end
+
+RegisterNetEvent('garbagejob:startroute')
+AddEventHandler('garbagejob:startroute', function(DumpsterCoords)
+    DumpsterBlip = AddBlipForCoord(DumpsterCoords)
+    SetBlipColour(DumpsterBlip, 1)
+    SetBlipRoute(DumpsterBlip, true)
+    SetBlipRouteColour(DumpsterBlip, 1)
+    SetBlipRouteColour(DumpsterBlip, 1)
+    SetBlipScale(DumpsterBlip, 0.7)
+    SetBlipAsShortRange(DumpsterBlip, true)
+end)
+
+RegisterNetEvent('garbagejob:stoproute')
+AddEventHandler('garbagejob:stoproute', function()
+    if DumpsterBlip then
+        if Config.Debug then
+            print('Removed blip')
+        end
+        RemoveBlip(DumpsterBlip)
+        DumpsterBlip = nil
+    end
+end)
