@@ -263,7 +263,6 @@ SetPropAndAnimation = function()
 end
 
 ReleasePropAndAnimation = function()
-    --DetachEntity(prop, true, true)
     DeleteEntity(propEntity)
     propEntity = nil
     ClearPedTasksImmediately(PlayerPedId())
