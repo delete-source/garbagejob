@@ -2,8 +2,12 @@ local activeJob = false
 local vehicle
 local jobsDone = 0
 local dumpsterSpawned
+local propEntity
 
 local garbageHQPedHash = GetHashKey(Config.GarbageCenterPed)
+local trashBagHash = GetHashKey(Config.TrashProp)
+local animDict = Config.TakingTrashAnimation.animDict
+local animation = Config.TakingTrashAnimation.animation
 
 -- THREADS --
 
@@ -130,7 +134,6 @@ StartJob = function()
             if Config.Debug then
                 print('Spawned dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
             end
-            --StartRouteToDumpster(DumpsterLocations[pickedDumpster][1])
             if Config.Debug then
                 print('Started route to dumpster')
             end
@@ -146,14 +149,17 @@ StartJob = function()
                     DrawMarkers(DumpsterLocations[pickedDumpster][1], 0, 1.0)
                 elseif radius < 2.0 then
                     Wait(1)
-                    ShowFloatingHelpNotification('Press ~INPUT_PICKUP~ to pick up the trash', vec3(DumpsterLocations[pickedDumpster][1].x, DumpsterLocations[pickedDumpster][1].y, DumpsterLocations[pickedDumpster][1].z+0.85))
+                    ShowFloatingHelpNotification(Config.DumpsterActions, vec3(DumpsterLocations[pickedDumpster][1].x, DumpsterLocations[pickedDumpster][1].y, DumpsterLocations[pickedDumpster][1].z+0.85))
                     if IsControlJustReleased(0, 38) then
+                        SetPropAndAnimation()
+                        ThrowTrashIntoTruck()
+                        while trashInHand do
+                            Wait(500)
+                        end
                         DeleteObject(dumpster)
                         dumpsterSpawned = false
                         jobsDone = jobsDone + 1
                         Notify(Instructions.NextJobOrCancel, NotifyType.info)
-                        --RemoveBlip(DumpsterBlip)
-                        --DumpsterBlip = nil
                         TriggerEvent('garbagejob:stoproute')
                         if Config.Debug then
                             print('Picked up dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
@@ -218,12 +224,15 @@ end
 RegisterNetEvent('garbagejob:startroute')
 AddEventHandler('garbagejob:startroute', function(DumpsterCoords)
     DumpsterBlip = AddBlipForCoord(DumpsterCoords)
-    SetBlipColour(DumpsterBlip, 1)
+    SetBlipColour(DumpsterBlip, Config.RouteSettings.blipColor)
+    SetBlipSprite(DumpsterBlip, Config.RouteSettings.blipSprite)
     SetBlipRoute(DumpsterBlip, true)
-    SetBlipRouteColour(DumpsterBlip, 1)
-    SetBlipRouteColour(DumpsterBlip, 1)
-    SetBlipScale(DumpsterBlip, 0.7)
-    SetBlipAsShortRange(DumpsterBlip, true)
+    SetBlipRouteColour(DumpsterBlip, Config.RouteSettings.routeColor)
+    SetBlipScale(DumpsterBlip, Config.RouteSettings.blipScale)
+    SetBlipAsShortRange(DumpsterBlip, Config.RouteSettings.shortRange)
+    BeginTextCommandSetBlipName('STRING')
+    AddTextComponentString(Config.RouteSettings.blipName)
+    EndTextCommandSetBlipName(blip)
 end)
 
 RegisterNetEvent('garbagejob:stoproute')
@@ -236,3 +245,53 @@ AddEventHandler('garbagejob:stoproute', function()
         DumpsterBlip = nil
     end
 end)
+
+SetPropAndAnimation = function()
+    RequestModel(trashBagHash)
+    RequestAnimDict(animDict)
+
+    while not HasModelLoaded(trashBagHash) or not HasAnimDictLoaded(animDict) do
+        Wait(100)
+        RequestModel(trashBagHash)
+        RequestAnimDict(animDict)
+    end
+
+    local prop = CreateObject(trashBagHash, GetEntityCoords(PlayerPedId()), true, true, true)
+    TaskPlayAnim(PlayerPedId(), animDict, animation, 8.0, -8.0, -1, 51, 0, false, false, false)
+    AttachEntityToEntity(prop, PlayerPedId(), GetPedBoneIndex(PlayerPedId(), 57005), 0.14, -0.31, -0.01, -97.0, 0.0, 0.0, true, true, false, false, 1, true)
+    propEntity = prop
+end
+
+ReleasePropAndAnimation = function()
+    --DetachEntity(prop, true, true)
+    DeleteEntity(propEntity)
+    propEntity = nil
+    ClearPedTasksImmediately(PlayerPedId())
+end
+
+ThrowTrashIntoTruck = function()
+    local TrunkPos = GetEntityCoords(vehicle)
+    local TrunkForward = GetEntityForwardVector(vehicle)
+    local ScaleFactor = 4.5
+    trashInHand = true
+
+    TrunkPos = TrunkPos - (TrunkForward * ScaleFactor)
+    TrunkHeight = TrunkPos.z
+    TrunkHeight = TrunkPos.z + 0.7
+
+    while trashInHand do
+        local radiusFromTruck = #(GetEntityCoords(PlayerPedId())  - vec3(TrunkPos.x, TrunkPos.y, TrunkHeight))
+        DrawMarkers(vec3(TrunkPos.x, TrunkPos.y, TrunkHeight), 0, 1.0)
+        if radiusFromTruck < 5.0 then
+            ShowFloatingHelpNotification(Instructions.ThrowTrashIntoTruck, TrunkPos)
+            if IsControlJustReleased(0, 38) then
+                trashInHand = false
+                ReleasePropAndAnimation()
+                if Config.Debug then
+                    print('Trash thrown into truck')
+                end
+            end
+        end
+        Wait(1)
+    end
+end
