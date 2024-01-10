@@ -8,6 +8,8 @@ local garbageHQPedHash = GetHashKey(Config.GarbageCenterPed)
 local trashBagHash = GetHashKey(Config.TrashProp)
 local animDict = Config.TakingTrashAnimation.animDict
 local animation = Config.TakingTrashAnimation.animation
+local throwDir = Config.ThrowTrashAnimation.animDict
+local throwAni = Config.ThrowTrashAnimation.animation
 
 -- THREADS --
 
@@ -52,7 +54,7 @@ CreateThread(function()
                 dumpsterSpawned = false
                 vehicle = nil
                 activeJob = false
-            end
+                end
             wait = 1
         elseif distance < 50.0 then
             if ped == nil then
@@ -130,11 +132,10 @@ StartJob = function()
 
             dumpster = CreateObject(Config.DumpsterProp, DumpsterLocations[pickedDumpster][1].x, DumpsterLocations[pickedDumpster][1].y, DumpsterLocations[pickedDumpster][1].z-1, true, true, true)
             SetEntityHeading(prop, DumpsterLocations[pickedDumpster][2])
+            FreezeEntityPosition(dumpster, true)
             dumpsterSpawned = true
             if Config.Debug then
                 print('Spawned dumpster at: ' .. DumpsterLocations[pickedDumpster][1])
-            end
-            if Config.Debug then
                 print('Started route to dumpster')
             end
             TriggerEvent('garbagejob:startroute', DumpsterLocations[pickedDumpster][1])
@@ -262,12 +263,6 @@ SetPropAndAnimation = function()
     propEntity = prop
 end
 
-ReleasePropAndAnimation = function()
-    DeleteEntity(propEntity)
-    propEntity = nil
-    ClearPedTasksImmediately(PlayerPedId())
-end
-
 ThrowTrashIntoTruck = function()
     local TrunkPos = GetEntityCoords(vehicle)
     local TrunkForward = GetEntityForwardVector(vehicle)
@@ -284,8 +279,9 @@ ThrowTrashIntoTruck = function()
         if radiusFromTruck < 5.0 then
             ShowFloatingHelpNotification(Instructions.ThrowTrashIntoTruck, TrunkPos)
             if IsControlJustReleased(0, 38) then
+                ClearPedTasksImmediately(PlayerPedId())
+                PlayThrowingAnimation()
                 trashInHand = false
-                ReleasePropAndAnimation()
                 if Config.Debug then
                     print('Trash thrown into truck')
                 end
@@ -293,4 +289,21 @@ ThrowTrashIntoTruck = function()
         end
         Wait(1)
     end
+end
+
+PlayThrowingAnimation = function()
+    RequestAnimDict(throwDir)
+
+    while not HasAnimDictLoaded(throwDir) do
+        Wait(100)
+        RequestAnimDict(throwDir)
+    end
+
+    SetVehicleDoorOpen(vehicle, 5, false)
+    TaskPlayAnim(PlayerPedId(), throwDir, throwAni, 8.0, -8.0, -1, 51, 0, false, false, false)
+    Wait(500)
+    ClearPedTasksImmediately(PlayerPedId())
+    DeleteEntity(propEntity)
+    SetVehicleDoorShut(vehicle, 5, false)
+    propEntity = nil
 end

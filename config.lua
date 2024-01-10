@@ -36,6 +36,11 @@ Config = {
     TakingTrashAnimation = {
         animDict = 'random@hitch_lift',
         animation = 'idle_f'
+    },
+
+    ThrowTrashAnimation = {
+        animDict = 'anim@arena@celeb@flat@paired@no_props@',
+        animation = 'baseball_a_player_b'
     }
 }
 
